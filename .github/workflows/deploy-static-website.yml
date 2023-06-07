@@ -1,0 +1,42 @@
+name: Deploy React web app to static website in Azure Storage
+
+env:
+  APP_ARTIFACT_LOCATION: "build"
+  STORAGE_ACCOUNT_NAME: ${{ vars.STORAGE_ACCOUNT_NAME }}
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out files
+        uses: actions/checkout@v3
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+      - name: Install dependencies
+        run: npm ci
+      - name: Build React web app
+        run: npm run build --if-present
+      - name: Log into Azure using secret credentials
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Upload to blob storage
+        uses: azure/CLI@v1
+        with:
+          azcliversion: 2.49.0
+          inlineScript: |
+              az storage blob upload-batch \
+                --account-name $STORAGE_ACCOUNT_NAME \
+                --auth-mode key \
+                --destination '$web' \
+                --source $APP_ARTIFACT_LOCATION
+      - name: Log out of Azure
+        run: |
+              az logout
+        if: always()
